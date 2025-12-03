@@ -870,7 +870,11 @@
                     updateLastUpdated(data.last_updated);
                     autoSaveIndicator.className = 'auto-save-indicator';
                     autoSaveIndicator.innerHTML = '✅ 已自动保存';
-                    loadHistory(); // 刷新历史记录
+                    
+                    // 延迟刷新历史记录，确保数据库已更新
+                    setTimeout(() => {
+                        loadHistory();
+                    }, 100);
                     
                     setTimeout(() => {
                         autoSaveIndicator.innerHTML = '💾 自动保存已开启';
