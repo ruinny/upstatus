@@ -39,6 +39,20 @@ if len(SUPABASE_KEY) < 30:
     print(error_msg)
     raise ValueError(error_msg)
 
+# 验证 SUPABASE_KEY 格式（应该是 JWT 格式，以 eyJ 开头）
+if not SUPABASE_KEY.startswith('eyJ'):
+    error_msg = f"❌ SUPABASE_KEY 格式错误！\n"
+    error_msg += f"当前 KEY 前缀: {SUPABASE_KEY[:20]}...\n\n"
+    error_msg += "正确的 Supabase API Key 应该：\n"
+    error_msg += "1. 以 'eyJ' 开头（JWT token 格式）\n"
+    error_msg += "2. 长度通常在 150-250 个字符\n"
+    error_msg += "3. 包含两个点号 '.' 分隔三部分\n\n"
+    error_msg += "请从 Supabase Dashboard 获取正确的 key：\n"
+    error_msg += "  Settings → API → Project API keys → anon public\n\n"
+    error_msg += "⚠️ 不要使用 'sb_secret_' 开头的 key，那是错误的格式\n"
+    print(error_msg)
+    raise ValueError(error_msg)
+
 # 打印配置信息（用于调试）
 print(f"✅ Supabase URL: {SUPABASE_URL}")
 print(f"✅ Supabase KEY 长度: {len(SUPABASE_KEY)} 字符")
