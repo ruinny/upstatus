@@ -7,9 +7,10 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # 挂载数据文件，确保数据持久化
-      - ./notes_data.json:/app/notes_data.json
+      # 挂载数据目录，确保数据持久化
+      - ./data:/app/data
     environment:
+      - DB_PATH=/app/data/notes.db
       - PORT=5000
     restart: unless-stopped
     healthcheck:
