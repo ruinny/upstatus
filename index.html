@@ -201,25 +201,36 @@
             margin-bottom: 10px;
             background: white;
             border-radius: 8px;
-            cursor: pointer;
             transition: all 0.2s;
             border-left: 4px solid #667eea;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            position: relative;
         }
 
         .history-item:hover {
-            transform: translateX(3px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
             border-left-color: #5568d3;
         }
 
-        .history-item:active {
-            transform: translateX(1px);
+        .history-item-content {
+            cursor: pointer;
+            padding-right: 80px;
+        }
+
+        .history-item-content:hover {
+            opacity: 0.8;
         }
 
         .history-item-date {
             font-weight: 600;
             color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .history-item-custom-title {
+            font-size: 0.9em;
+            color: #48bb78;
+            font-weight: 500;
             margin-bottom: 4px;
         }
 
@@ -235,6 +246,164 @@
             font-size: 0.75em;
             color: #999;
             margin-top: 4px;
+        }
+
+        .history-item-actions {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .history-item:hover .history-item-actions {
+            opacity: 1;
+        }
+
+        .btn-icon {
+            padding: 6px 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-icon:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        .btn-icon.btn-delete {
+            background: #f56565;
+        }
+
+        .btn-icon.btn-delete:hover {
+            background: #e53e3e;
+        }
+
+        .btn-icon.btn-rename {
+            background: #48bb78;
+        }
+
+        .btn-icon.btn-rename:hover {
+            background: #38a169;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-cancel {
+            padding: 8px 16px;
+            background: #e0e0e0;
+            color: #555;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-cancel:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-confirm {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-confirm:hover {
+            background: #5568d3;
+        }
+
+        .btn-confirm.btn-danger {
+            background: #f56565;
+        }
+
+        .btn-confirm.btn-danger:hover {
+            background: #e53e3e;
         }
 
         .no-history {
@@ -348,6 +517,16 @@
             border-bottom: 2px solid #e0e0e0;
         }
 
+        @media (max-width: 1200px) {
+            .container {
+                padding: 20px;
+            }
+
+            .sidebar {
+                width: 300px;
+            }
+        }
+
         @media (max-width: 1024px) {
             .main-content {
                 flex-direction: column;
@@ -374,9 +553,15 @@
             }
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
             .container {
                 padding: 15px;
+                height: auto;
+                max-height: none;
             }
 
             h1 {
@@ -403,13 +588,33 @@
             }
 
             .sidebar {
-                max-height: 250px;
-                padding: 12px;
+                max-height: 300px;
+                padding: 15px;
             }
 
             textarea {
-                min-height: 0;
-                font-size: 13px;
+                min-height: 300px;
+                font-size: 14px;
+                padding: 15px;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+            }
+
+            .history-item-actions {
+                opacity: 1;
+                position: relative;
+                right: auto;
+                top: auto;
+                transform: none;
+                margin-top: 8px;
+                justify-content: flex-end;
+            }
+
+            .history-item-content {
+                padding-right: 0;
             }
         }
     </style>
@@ -461,6 +666,42 @@
         <div class="status" id="status"></div>
     </div>
 
+    <!-- 重命名模态框 -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <div class="modal-header">✏️ 重命名记录</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>自定义标题（可选）</label>
+                    <input type="text" id="customTitle" placeholder="输入自定义标题，留空则只显示日期">
+                </div>
+                <div class="form-group">
+                    <label>日期</label>
+                    <input type="date" id="newDate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeRenameModal()">取消</button>
+                <button class="btn-confirm" onclick="confirmRename()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">🗑️ 确认删除</div>
+            <div class="modal-body">
+                <p>确定要删除 <strong id="deleteDate"></strong> 的记录吗？</p>
+                <p style="color: #999; font-size: 0.9em; margin-top: 10px;">此操作无法撤销！</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeDeleteModal()">取消</button>
+                <button class="btn-confirm btn-danger" onclick="confirmDelete()">确认删除</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = '/api/note';
         const textarea = document.getElementById('notepad');
@@ -475,6 +716,8 @@
         let currentDate = new Date().toISOString().split('T')[0];
         let autoSaveTimer = null;
         let hasUnsavedChanges = false;
+        let currentRenameDate = null;
+        let currentDeleteDate = null;
 
         // 页面加载时自动获取内容
         window.onload = function() {
@@ -522,7 +765,11 @@
                     data.dates.forEach(item => {
                         const li = document.createElement('li');
                         li.className = 'history-item';
-                        li.onclick = () => {
+                        
+                        // 创建可点击的内容区域
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'history-item-content';
+                        contentDiv.onclick = () => {
                             currentDate = item.date;
                             dateInput.value = item.date;
                             loadNote();
@@ -532,6 +779,14 @@
                         dateDiv.className = 'history-item-date';
                         dateDiv.textContent = item.date;
                         
+                        // 如果有自定义标题，显示自定义标题
+                        if (item.custom_title) {
+                            const titleDiv = document.createElement('div');
+                            titleDiv.className = 'history-item-custom-title';
+                            titleDiv.textContent = '📌 ' + item.custom_title;
+                            contentDiv.appendChild(titleDiv);
+                        }
+                        
                         const timeDiv = document.createElement('div');
                         timeDiv.className = 'history-item-time';
                         if (item.last_updated) {
@@ -539,8 +794,36 @@
                             timeDiv.textContent = '最后更新: ' + date.toLocaleString('zh-CN');
                         }
                         
-                        li.appendChild(dateDiv);
-                        li.appendChild(timeDiv);
+                        contentDiv.appendChild(dateDiv);
+                        contentDiv.appendChild(timeDiv);
+                        
+                        // 创建操作按钮
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'history-item-actions';
+                        
+                        const renameBtn = document.createElement('button');
+                        renameBtn.className = 'btn-icon btn-rename';
+                        renameBtn.innerHTML = '✏️';
+                        renameBtn.title = '重命名';
+                        renameBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            openRenameModal(item.date, item.custom_title || '');
+                        };
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'btn-icon btn-delete';
+                        deleteBtn.innerHTML = '🗑️';
+                        deleteBtn.title = '删除';
+                        deleteBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            openDeleteModal(item.date);
+                        };
+                        
+                        actionsDiv.appendChild(renameBtn);
+                        actionsDiv.appendChild(deleteBtn);
+                        
+                        li.appendChild(contentDiv);
+                        li.appendChild(actionsDiv);
                         historyList.appendChild(li);
                     });
                 } else {
@@ -660,6 +943,101 @@
             }
         }
 
+
+        // 打开重命名模态框
+        function openRenameModal(date, title) {
+            currentRenameDate = date;
+            document.getElementById('customTitle').value = title;
+            document.getElementById('newDate').value = date;
+            document.getElementById('renameModal').classList.add('show');
+        }
+
+        // 关闭重命名模态框
+        function closeRenameModal() {
+            document.getElementById('renameModal').classList.remove('show');
+            currentRenameDate = null;
+        }
+
+        // 确认重命名
+        async function confirmRename() {
+            const customTitle = document.getElementById('customTitle').value.trim();
+            const newDate = document.getElementById('newDate').value;
+            
+            if (!newDate) {
+                showStatus('❌ 请选择日期', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/note/rename', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        old_date: currentRenameDate,
+                        new_date: newDate,
+                        custom_title: customTitle
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ ' + data.message);
+                    closeRenameModal();
+                    loadHistory();
+                    
+                    // 如果重命名的是当前日期，则切换到新日期
+                    if (currentDate === currentRenameDate) {
+                        currentDate = newDate;
+                        dateInput.value = newDate;
+                        loadNote();
+                    }
+                } else {
+                    showStatus('❌ ' + data.message, true);
+                }
+            } catch (error) {
+                showStatus('❌ 网络错误: ' + error.message, true);
+            }
+        }
+
+        // 打开删除确认模态框
+        function openDeleteModal(date) {
+            currentDeleteDate = date;
+            document.getElementById('deleteDate').textContent = date;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+
+        // 关闭删除确认模态框
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            currentDeleteDate = null;
+        }
+
+        // 确认删除
+        async function confirmDelete() {
+            try {
+                const response = await fetch(`${API_BASE}?date=${currentDeleteDate}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ ' + data.message);
+                    closeDeleteModal();
+                    loadHistory();
+                    
+                    // 如果删除的是当前日期，则切换到今天
+                    if (currentDate === currentDeleteDate) {
+                        goToday();
+                    }
+                } else {
+                    showStatus('❌ ' + data.message, true);
+                }
+            } catch (error) {
+                showStatus('❌ 网络错误: ' + error.message, true);
+            }
+        }
 
         // 键盘快捷键
         document.addEventListener('keydown', function(e) {

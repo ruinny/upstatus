@@ -62,10 +62,20 @@ def save_note():
     
     # 只有当内容不为空时才保存
     if content.strip():
-        notes_by_date[date] = {
-            'content': content,
-            'last_updated': last_updated
-        }
+        # 如果该日期已有记录，保留其自定义标题
+        if date in notes_by_date:
+            custom_title = notes_by_date[date].get('custom_title', '')
+            notes_by_date[date] = {
+                'content': content,
+                'last_updated': last_updated
+            }
+            if custom_title:
+                notes_by_date[date]['custom_title'] = custom_title
+        else:
+            notes_by_date[date] = {
+                'content': content,
+                'last_updated': last_updated
+            }
         save_notes()
         return jsonify({
             'success': True,
@@ -86,16 +96,70 @@ def save_note():
         })
 
 @app.route('/api/note', methods=['DELETE'])
-def clear_note():
-    """清空指定日期的记事本内容"""
+def delete_note():
+    """删除指定日期的记事本记录"""
     date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     if date in notes_by_date:
         del notes_by_date[date]
         save_notes()
+        return jsonify({
+            'success': True,
+            'message': '记录已删除',
+            'date': date
+        })
+    return jsonify({
+        'success': False,
+        'message': '记录不存在',
+        'date': date
+    })
+
+@app.route('/api/note/rename', methods=['POST'])
+def rename_note():
+    """重命名记事本记录（修改日期或添加自定义标题）"""
+    data = request.get_json()
+    old_date = data.get('old_date')
+    new_date = data.get('new_date')
+    custom_title = data.get('custom_title', '')
+    
+    if not old_date or not new_date:
+        return jsonify({
+            'success': False,
+            'message': '缺少必要参数'
+        })
+    
+    if old_date not in notes_by_date:
+        return jsonify({
+            'success': False,
+            'message': '原记录不存在'
+        })
+    
+    # 复制原记录
+    note_data = notes_by_date[old_date].copy()
+    
+    # 更新自定义标题
+    if custom_title.strip():
+        note_data['custom_title'] = custom_title.strip()
+    else:
+        # 如果标题为空，删除自定义标题字段
+        note_data.pop('custom_title', None)
+    
+    # 如果日期改变，删除旧记录
+    if old_date != new_date:
+        if new_date in notes_by_date:
+            return jsonify({
+                'success': False,
+                'message': '目标日期已存在记录'
+            })
+        del notes_by_date[old_date]
+    
+    notes_by_date[new_date] = note_data
+    save_notes()
+    
     return jsonify({
         'success': True,
-        'message': '已清空',
-        'date': date
+        'message': '重命名成功',
+        'old_date': old_date,
+        'new_date': new_date
     })
 
 @app.route('/api/dates', methods=['GET'])
@@ -108,6 +172,7 @@ def get_dates():
         note = notes_by_date[date]
         date_list.append({
             'date': date,
+            'custom_title': note.get('custom_title', ''),
             'last_updated': note.get('last_updated'),
             'preview': note.get('content', '')[:50]  # 预览前50个字符
         })
