@@ -36,7 +36,7 @@ wheels/
 .gitignore
 
 # 数据文件（可选，如果想保留数据则注释掉）
-# notes_data.json
+data/notes_data.json
 
 # 其他
 .DS_Store

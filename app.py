@@ -11,7 +11,7 @@ CORS(app)
 # 存储记事本内容的字典，按日期组织（生产环境建议使用数据库）
 # 格式: {'2024-12-02': {'content': '...', 'last_updated': '...'}}
 notes_by_date = {}
-DATA_FILE = 'notes_data.json'
+DATA_FILE = 'data/otes_data.json'
 
 # 加载保存的数据
 def load_notes():
