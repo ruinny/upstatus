@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
+import sqlite3
 from datetime import datetime
-from supabase import create_client, Client
 from dotenv import load_dotenv
+from contextlib import contextmanager
 
 # 加载环境变量
 load_dotenv()
@@ -11,74 +12,46 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Supabase 配置
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '').strip()
+# SQLite 数据库配置
+DB_PATH = os.environ.get('DB_PATH', 'notes.db')
 
-# 详细的环境变量检查
-if not SUPABASE_URL or not SUPABASE_KEY:
-    error_msg = "❌ Supabase 环境变量未配置！\n"
-    if not SUPABASE_URL:
-        error_msg += "  - 缺少 SUPABASE_URL\n"
-    if not SUPABASE_KEY:
-        error_msg += "  - 缺少 SUPABASE_KEY\n"
-    error_msg += "\n请在部署平台的环境变量中设置：\n"
-    error_msg += "  SUPABASE_URL=https://your-project-id.supabase.co\n"
-    error_msg += "  SUPABASE_KEY=your-supabase-anon-key\n"
-    print(error_msg)
-    raise ValueError(error_msg)
+# 数据库上下文管理器
+@contextmanager
+def get_db():
+    """获取数据库连接的上下文管理器"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # 使结果可以像字典一样访问
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
-# 验证环境变量格式
-if not SUPABASE_URL.startswith('https://'):
-    error_msg = f"❌ SUPABASE_URL 格式错误: {SUPABASE_URL}\n应该以 https:// 开头"
-    print(error_msg)
-    raise ValueError(error_msg)
+def init_db():
+    """初始化数据库表"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL UNIQUE,
+                content TEXT NOT NULL,
+                custom_title TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        # 创建日期索引以提高查询性能
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_date ON notes(date)
+        ''')
+        print("✅ 数据库初始化成功")
 
-if len(SUPABASE_KEY) < 30:
-    error_msg = f"❌ SUPABASE_KEY 似乎无效（长度太短: {len(SUPABASE_KEY)}）\n请检查是否完整复制了 API key"
-    print(error_msg)
-    raise ValueError(error_msg)
-
-# 验证 SUPABASE_KEY 格式（应该是 JWT 格式，以 eyJ 开头）
-if not SUPABASE_KEY.startswith('eyJ'):
-    error_msg = f"❌ SUPABASE_KEY 格式错误！\n"
-    error_msg += f"当前 KEY 前缀: {SUPABASE_KEY[:20]}...\n\n"
-    error_msg += "正确的 Supabase API Key 应该：\n"
-    error_msg += "1. 以 'eyJ' 开头（JWT token 格式）\n"
-    error_msg += "2. 长度通常在 150-250 个字符\n"
-    error_msg += "3. 包含两个点号 '.' 分隔三部分\n\n"
-    error_msg += "请从 Supabase Dashboard 获取正确的 key：\n"
-    error_msg += "  Settings → API → Project API keys → anon public\n\n"
-    error_msg += "⚠️ 不要使用 'sb_secret_' 开头的 key，那是错误的格式\n"
-    print(error_msg)
-    raise ValueError(error_msg)
-
-# 打印配置信息（用于调试）
-print(f"✅ Supabase URL: {SUPABASE_URL}")
-print(f"✅ Supabase KEY 长度: {len(SUPABASE_KEY)} 字符")
-print(f"✅ Supabase KEY 前10位: {SUPABASE_KEY[:10]}...")
-
-# 初始化 Supabase 客户端（使用延迟初始化避免启动时的错误）
-supabase: Client = None
-
-def get_supabase_client():
-    """获取 Supabase 客户端实例，使用单例模式"""
-    global supabase
-    if supabase is None:
-        try:
-            # 创建客户端时不传递 proxy 参数
-            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-            print("✅ Supabase 客户端初始化成功")
-        except Exception as e:
-            error_msg = f"❌ Supabase 客户端初始化失败: {str(e)}\n"
-            error_msg += "请检查：\n"
-            error_msg += "1. SUPABASE_URL 是否正确（从 Supabase Dashboard → Settings → API → Project URL 获取）\n"
-            error_msg += "2. SUPABASE_KEY 是否正确（从 Supabase Dashboard → Settings → API → anon public key 获取）\n"
-            error_msg += "3. API key 是否完整复制（没有多余的空格或换行）\n"
-            error_msg += "4. 依赖包版本是否兼容（尝试运行：pip install --upgrade supabase httpx）\n"
-            print(error_msg)
-            raise
-    return supabase
+# 应用启动时初始化数据库
+init_db()
 
 @app.route('/')
 def index():
@@ -90,22 +63,28 @@ def get_note():
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         
-        # 从 Supabase 查询数据
-        response = get_supabase_client().table('notes').select('*').eq('date', date).execute()
-        
-        if response.data and len(response.data) > 0:
-            note = response.data[0]
-            return jsonify({
-                'content': note.get('content', ''),
-                'last_updated': note.get('last_updated'),
-                'date': date
-            })
-        else:
-            return jsonify({
-                'content': '',
-                'last_updated': None,
-                'date': date
-            })
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT content, last_updated, custom_title FROM notes WHERE date = ?',
+                (date,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                return jsonify({
+                    'content': row['content'],
+                    'last_updated': row['last_updated'],
+                    'date': date,
+                    'custom_title': row['custom_title']
+                })
+            else:
+                return jsonify({
+                    'content': '',
+                    'last_updated': None,
+                    'date': date,
+                    'custom_title': None
+                })
     except Exception as e:
         print(f"获取笔记失败: {e}")
         return jsonify({
@@ -124,47 +103,44 @@ def save_note():
         date = data.get('date', datetime.now().strftime('%Y-%m-%d'))
         last_updated = datetime.now().isoformat()
         
-        # 只有当内容不为空时才保存
-        if content.strip():
-            # 检查该日期是否已存在记录
-            existing = get_supabase_client().table('notes').select('*').eq('date', date).execute()
+        with get_db() as conn:
+            cursor = conn.cursor()
             
-            if existing.data and len(existing.data) > 0:
-                # 更新现有记录，保留 custom_title
-                note_id = existing.data[0]['id']
-                custom_title = existing.data[0].get('custom_title', '')
+            # 只有当内容不为空时才保存
+            if content.strip():
+                # 检查该日期是否已存在记录
+                cursor.execute('SELECT id, custom_title FROM notes WHERE date = ?', (date,))
+                existing = cursor.fetchone()
                 
-                update_data = {
-                    'content': content,
-                    'last_updated': last_updated
-                }
-                if custom_title:
-                    update_data['custom_title'] = custom_title
+                if existing:
+                    # 更新现有记录，保留 custom_title
+                    custom_title = existing['custom_title']
+                    cursor.execute(
+                        'UPDATE notes SET content = ?, last_updated = ? WHERE date = ?',
+                        (content, last_updated, date)
+                    )
+                else:
+                    # 插入新记录
+                    cursor.execute(
+                        'INSERT INTO notes (date, content, last_updated, created_at) VALUES (?, ?, ?, ?)',
+                        (date, content, last_updated, last_updated)
+                    )
                 
-                get_supabase_client().table('notes').update(update_data).eq('id', note_id).execute()
+                return jsonify({
+                    'success': True,
+                    'message': '保存成功',
+                    'last_updated': last_updated,
+                    'date': date
+                })
             else:
-                # 插入新记录
-                get_supabase_client().table('notes').insert({
-                    'date': date,
-                    'content': content,
-                    'last_updated': last_updated
-                }).execute()
-            
-            return jsonify({
-                'success': True,
-                'message': '保存成功',
-                'last_updated': last_updated,
-                'date': date
-            })
-        else:
-            # 如果内容为空，删除该日期的记录
-            get_supabase_client().table('notes').delete().eq('date', date).execute()
-            return jsonify({
-                'success': True,
-                'message': '内容为空，已删除记录',
-                'last_updated': last_updated,
-                'date': date
-            })
+                # 如果内容为空，删除该日期的记录
+                cursor.execute('DELETE FROM notes WHERE date = ?', (date,))
+                return jsonify({
+                    'success': True,
+                    'message': '内容为空，已删除记录',
+                    'last_updated': last_updated,
+                    'date': date
+                })
     except Exception as e:
         print(f"保存笔记失败: {e}")
         return jsonify({
@@ -178,22 +154,25 @@ def delete_note():
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         
-        # 检查记录是否存在
-        existing = get_supabase_client().table('notes').select('*').eq('date', date).execute()
-        
-        if existing.data and len(existing.data) > 0:
-            get_supabase_client().table('notes').delete().eq('date', date).execute()
-            return jsonify({
-                'success': True,
-                'message': '记录已删除',
-                'date': date
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': '记录不存在',
-                'date': date
-            })
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # 检查记录是否存在
+            cursor.execute('SELECT id FROM notes WHERE date = ?', (date,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                cursor.execute('DELETE FROM notes WHERE date = ?', (date,))
+                return jsonify({
+                    'success': True,
+                    'message': '记录已删除',
+                    'date': date
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': '记录不存在',
+                    'date': date
+                })
     except Exception as e:
         print(f"删除笔记失败: {e}")
         return jsonify({
@@ -208,54 +187,50 @@ def rename_note():
         data = request.get_json()
         old_date = data.get('old_date')
         new_date = data.get('new_date')
-        custom_title = data.get('custom_title', '')
+        custom_title = data.get('custom_title', '').strip()
         
         if not old_date or not new_date:
             return jsonify({
                 'success': False,
                 'message': '缺少必要参数'
-            })
+            }), 400
         
-        # 查询原记录
-        existing = get_supabase_client().table('notes').select('*').eq('date', old_date).execute()
-        
-        if not existing.data or len(existing.data) == 0:
-            return jsonify({
-                'success': False,
-                'message': '原记录不存在'
-            })
-        
-        note = existing.data[0]
-        note_id = note['id']
-        
-        # 如果日期改变，检查新日期是否已存在
-        if old_date != new_date:
-            new_date_check = get_supabase_client().table('notes').select('*').eq('date', new_date).execute()
-            if new_date_check.data and len(new_date_check.data) > 0:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # 查询原记录
+            cursor.execute('SELECT id FROM notes WHERE date = ?', (old_date,))
+            existing = cursor.fetchone()
+            
+            if not existing:
                 return jsonify({
                     'success': False,
-                    'message': '目标日期已存在记录'
-                })
-        
-        # 更新记录
-        update_data = {
-            'date': new_date,
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        if custom_title.strip():
-            update_data['custom_title'] = custom_title.strip()
-        else:
-            update_data['custom_title'] = None
-        
-        get_supabase_client().table('notes').update(update_data).eq('id', note_id).execute()
-        
-        return jsonify({
-            'success': True,
-            'message': '重命名成功',
-            'old_date': old_date,
-            'new_date': new_date
-        })
+                    'message': '原记录不存在'
+                }), 404
+            
+            # 如果日期改变，检查新日期是否已存在
+            if old_date != new_date:
+                cursor.execute('SELECT id FROM notes WHERE date = ?', (new_date,))
+                new_date_exists = cursor.fetchone()
+                if new_date_exists:
+                    return jsonify({
+                        'success': False,
+                        'message': '目标日期已存在记录'
+                    }), 409
+            
+            # 更新记录
+            last_updated = datetime.now().isoformat()
+            cursor.execute(
+                'UPDATE notes SET date = ?, custom_title = ?, last_updated = ? WHERE date = ?',
+                (new_date, custom_title if custom_title else None, last_updated, old_date)
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': '重命名成功',
+                'old_date': old_date,
+                'new_date': new_date
+            })
     except Exception as e:
         print(f"重命名笔记失败: {e}")
         return jsonify({
@@ -267,23 +242,29 @@ def rename_note():
 def get_dates():
     """获取所有有记录的日期列表"""
     try:
-        # 从 Supabase 查询所有记录，按日期倒序排列
-        response = get_supabase_client().table('notes').select('*').order('date', desc=True).execute()
-        
-        date_list = []
-        if response.data:
-            for note in response.data:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT date, custom_title, last_updated, 
+                       substr(content, 1, 50) as preview
+                FROM notes 
+                ORDER BY date DESC
+            ''')
+            rows = cursor.fetchall()
+            
+            date_list = []
+            for row in rows:
                 date_list.append({
-                    'date': note.get('date'),
-                    'custom_title': note.get('custom_title', ''),
-                    'last_updated': note.get('last_updated'),
-                    'preview': note.get('content', '')[:50]  # 预览前50个字符
+                    'date': row['date'],
+                    'custom_title': row['custom_title'] or '',
+                    'last_updated': row['last_updated'],
+                    'preview': row['preview']
                 })
-        
-        return jsonify({
-            'dates': date_list,
-            'count': len(date_list)
-        })
+            
+            return jsonify({
+                'dates': date_list,
+                'count': len(date_list)
+            })
     except Exception as e:
         print(f"获取日期列表失败: {e}")
         return jsonify({
