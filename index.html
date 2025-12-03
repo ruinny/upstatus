@@ -638,6 +638,7 @@
                         <label>📅</label>
                         <input type="date" id="dateInput" onchange="switchDate()">
                         <button class="btn-today" onclick="goToday()">今天</button>
+                        <button class="btn-today" onclick="updateApiToken()" title="更新 API Token">🔑</button>
                     </div>
                 </div>
             </div>
@@ -703,6 +704,89 @@
     </div>
 
     <script>
+        // === Token 管理 ===
+        const TOKEN_STORAGE_KEY = 'upstatus_api_token';
+
+        // 从 localStorage 获取 Token，如果不存在则提示输入
+        function getApiToken() {
+            let token = localStorage.getItem(TOKEN_STORAGE_KEY);
+            
+            if (!token) {
+                token = prompt('🔐 请输入 API Token 以访问记事本：\n\n（Token 会保存在浏览器中，下次访问无需重新输入）');
+                
+                if (token) {
+                    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+                } else {
+                    alert('未输入 Token，无法使用记事本功能');
+                    return null;
+                }
+            }
+            
+            return token;
+        }
+
+        // 清除 Token（用于 Token 失效时）
+        function clearApiToken() {
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+        }
+
+        // 更新 Token
+        function updateApiToken() {
+            const newToken = prompt('🔑 请输入新的 API Token:');
+            if (newToken) {
+                localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
+                alert('✅ Token 已更新，页面将刷新');
+                location.reload();
+            }
+        }
+
+        // 初始化 Token
+        const API_TOKEN = getApiToken();
+
+        // === API 请求封装 ===
+        async function apiRequest(url, options = {}) {
+            // 如果没有 Token，不发送请求
+            if (!API_TOKEN) {
+                showStatus('❌ 未配置 Token，无法访问 API', true);
+                return null;
+            }
+            
+            // 添加 Token 头部
+            options.headers = options.headers || {};
+            options.headers['X-API-Token'] = API_TOKEN;
+            
+            try {
+                const response = await fetch(url, options);
+                
+                // 处理 401 未授权
+                if (response.status === 401) {
+                    clearApiToken();
+                    alert('❌ Token 无效或已过期，请重新输入');
+                    location.reload();
+                    return null;
+                }
+                
+                // 处理 429 速率限制
+                if (response.status === 429) {
+                    showStatus('⚠️ 请求过于频繁，请稍后再试', true);
+                    return null;
+                }
+                
+                // 处理 413 内容过大
+                if (response.status === 413) {
+                    showStatus('❌ 内容过大，请减少内容长度', true);
+                    return null;
+                }
+                
+                return response;
+            } catch (error) {
+                console.error('API请求失败:', error);
+                showStatus('❌ 网络错误: ' + error.message, true);
+                return null;
+            }
+        }
+
+        // === 页面逻辑 ===
         const API_BASE = '/api/note';
         const textarea = document.getElementById('notepad');
         const statusDiv = document.getElementById('status');
@@ -756,7 +840,9 @@
         // 加载历史记录
         async function loadHistory() {
             try {
-                const response = await fetch('/api/dates');
+                const response = await apiRequest('/api/dates');
+                if (!response) return;
+                
                 const data = await response.json();
                 const historyList = document.getElementById('historyList');
                 
@@ -853,7 +939,7 @@
         // 自动保存
         async function autoSave() {
             try {
-                const response = await fetch(API_BASE, {
+                const response = await apiRequest(API_BASE, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -863,6 +949,12 @@
                         date: currentDate
                     })
                 });
+
+                if (!response) {
+                    autoSaveIndicator.className = 'auto-save-indicator';
+                    autoSaveIndicator.innerHTML = '💾 自动保存已开启';
+                    return;
+                }
 
                 const data = await response.json();
                 if (data.success) {
@@ -907,7 +999,7 @@
         // 保存笔记
         async function saveNote() {
             try {
-                const response = await fetch(API_BASE, {
+                const response = await apiRequest(API_BASE, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -917,6 +1009,8 @@
                         date: currentDate
                     })
                 });
+
+                if (!response) return;
 
                 const data = await response.json();
                 if (data.success) {
@@ -935,7 +1029,9 @@
         // 加载笔记
         async function loadNote() {
             try {
-                const response = await fetch(`${API_BASE}?date=${currentDate}`);
+                const response = await apiRequest(`${API_BASE}?date=${currentDate}`);
+                if (!response) return;
+                
                 const data = await response.json();
                 textarea.value = data.content || '';
                 hasUnsavedChanges = false;
@@ -973,7 +1069,7 @@
             }
             
             try {
-                const response = await fetch('/api/note/rename', {
+                const response = await apiRequest('/api/note/rename', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -984,6 +1080,8 @@
                         custom_title: customTitle
                     })
                 });
+
+                if (!response) return;
 
                 const data = await response.json();
                 if (data.success) {
@@ -1021,9 +1119,11 @@
         // 确认删除
         async function confirmDelete() {
             try {
-                const response = await fetch(`${API_BASE}?date=${currentDeleteDate}`, {
+                const response = await apiRequest(`${API_BASE}?date=${currentDeleteDate}`, {
                     method: 'DELETE'
                 });
+
+                if (!response) return;
 
                 const data = await response.json();
                 if (data.success) {
