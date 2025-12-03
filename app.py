@@ -58,18 +58,27 @@ print(f"✅ Supabase URL: {SUPABASE_URL}")
 print(f"✅ Supabase KEY 长度: {len(SUPABASE_KEY)} 字符")
 print(f"✅ Supabase KEY 前10位: {SUPABASE_KEY[:10]}...")
 
-# 初始化 Supabase 客户端
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ Supabase 客户端初始化成功")
-except Exception as e:
-    error_msg = f"❌ Supabase 客户端初始化失败: {str(e)}\n"
-    error_msg += "请检查：\n"
-    error_msg += "1. SUPABASE_URL 是否正确（从 Supabase Dashboard → Settings → API → Project URL 获取）\n"
-    error_msg += "2. SUPABASE_KEY 是否正确（从 Supabase Dashboard → Settings → API → anon public key 获取）\n"
-    error_msg += "3. API key 是否完整复制（没有多余的空格或换行）\n"
-    print(error_msg)
-    raise
+# 初始化 Supabase 客户端（使用延迟初始化避免启动时的错误）
+supabase: Client = None
+
+def get_supabase_client():
+    """获取 Supabase 客户端实例，使用单例模式"""
+    global supabase
+    if supabase is None:
+        try:
+            # 创建客户端时不传递 proxy 参数
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            print("✅ Supabase 客户端初始化成功")
+        except Exception as e:
+            error_msg = f"❌ Supabase 客户端初始化失败: {str(e)}\n"
+            error_msg += "请检查：\n"
+            error_msg += "1. SUPABASE_URL 是否正确（从 Supabase Dashboard → Settings → API → Project URL 获取）\n"
+            error_msg += "2. SUPABASE_KEY 是否正确（从 Supabase Dashboard → Settings → API → anon public key 获取）\n"
+            error_msg += "3. API key 是否完整复制（没有多余的空格或换行）\n"
+            error_msg += "4. 依赖包版本是否兼容（尝试运行：pip install --upgrade supabase httpx）\n"
+            print(error_msg)
+            raise
+    return supabase
 
 @app.route('/')
 def index():
@@ -82,7 +91,7 @@ def get_note():
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         
         # 从 Supabase 查询数据
-        response = supabase.table('notes').select('*').eq('date', date).execute()
+        response = get_supabase_client().table('notes').select('*').eq('date', date).execute()
         
         if response.data and len(response.data) > 0:
             note = response.data[0]
@@ -118,7 +127,7 @@ def save_note():
         # 只有当内容不为空时才保存
         if content.strip():
             # 检查该日期是否已存在记录
-            existing = supabase.table('notes').select('*').eq('date', date).execute()
+            existing = get_supabase_client().table('notes').select('*').eq('date', date).execute()
             
             if existing.data and len(existing.data) > 0:
                 # 更新现有记录，保留 custom_title
@@ -132,10 +141,10 @@ def save_note():
                 if custom_title:
                     update_data['custom_title'] = custom_title
                 
-                supabase.table('notes').update(update_data).eq('id', note_id).execute()
+                get_supabase_client().table('notes').update(update_data).eq('id', note_id).execute()
             else:
                 # 插入新记录
-                supabase.table('notes').insert({
+                get_supabase_client().table('notes').insert({
                     'date': date,
                     'content': content,
                     'last_updated': last_updated
@@ -149,7 +158,7 @@ def save_note():
             })
         else:
             # 如果内容为空，删除该日期的记录
-            supabase.table('notes').delete().eq('date', date).execute()
+            get_supabase_client().table('notes').delete().eq('date', date).execute()
             return jsonify({
                 'success': True,
                 'message': '内容为空，已删除记录',
@@ -170,10 +179,10 @@ def delete_note():
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         
         # 检查记录是否存在
-        existing = supabase.table('notes').select('*').eq('date', date).execute()
+        existing = get_supabase_client().table('notes').select('*').eq('date', date).execute()
         
         if existing.data and len(existing.data) > 0:
-            supabase.table('notes').delete().eq('date', date).execute()
+            get_supabase_client().table('notes').delete().eq('date', date).execute()
             return jsonify({
                 'success': True,
                 'message': '记录已删除',
@@ -208,7 +217,7 @@ def rename_note():
             })
         
         # 查询原记录
-        existing = supabase.table('notes').select('*').eq('date', old_date).execute()
+        existing = get_supabase_client().table('notes').select('*').eq('date', old_date).execute()
         
         if not existing.data or len(existing.data) == 0:
             return jsonify({
@@ -221,7 +230,7 @@ def rename_note():
         
         # 如果日期改变，检查新日期是否已存在
         if old_date != new_date:
-            new_date_check = supabase.table('notes').select('*').eq('date', new_date).execute()
+            new_date_check = get_supabase_client().table('notes').select('*').eq('date', new_date).execute()
             if new_date_check.data and len(new_date_check.data) > 0:
                 return jsonify({
                     'success': False,
@@ -239,7 +248,7 @@ def rename_note():
         else:
             update_data['custom_title'] = None
         
-        supabase.table('notes').update(update_data).eq('id', note_id).execute()
+        get_supabase_client().table('notes').update(update_data).eq('id', note_id).execute()
         
         return jsonify({
             'success': True,
@@ -259,7 +268,7 @@ def get_dates():
     """获取所有有记录的日期列表"""
     try:
         # 从 Supabase 查询所有记录，按日期倒序排列
-        response = supabase.table('notes').select('*').order('date', desc=True).execute()
+        response = get_supabase_client().table('notes').select('*').order('date', desc=True).execute()
         
         date_list = []
         if response.data:
