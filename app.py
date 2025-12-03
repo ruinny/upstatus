@@ -12,14 +12,50 @@ app = Flask(__name__)
 CORS(app)
 
 # Supabase 配置
-SUPABASE_URL = os.environ.get('SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '').strip()
 
+# 详细的环境变量检查
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("请在 .env 文件中设置 SUPABASE_URL 和 SUPABASE_KEY")
+    error_msg = "❌ Supabase 环境变量未配置！\n"
+    if not SUPABASE_URL:
+        error_msg += "  - 缺少 SUPABASE_URL\n"
+    if not SUPABASE_KEY:
+        error_msg += "  - 缺少 SUPABASE_KEY\n"
+    error_msg += "\n请在部署平台的环境变量中设置：\n"
+    error_msg += "  SUPABASE_URL=https://your-project-id.supabase.co\n"
+    error_msg += "  SUPABASE_KEY=your-supabase-anon-key\n"
+    print(error_msg)
+    raise ValueError(error_msg)
+
+# 验证环境变量格式
+if not SUPABASE_URL.startswith('https://'):
+    error_msg = f"❌ SUPABASE_URL 格式错误: {SUPABASE_URL}\n应该以 https:// 开头"
+    print(error_msg)
+    raise ValueError(error_msg)
+
+if len(SUPABASE_KEY) < 30:
+    error_msg = f"❌ SUPABASE_KEY 似乎无效（长度太短: {len(SUPABASE_KEY)}）\n请检查是否完整复制了 API key"
+    print(error_msg)
+    raise ValueError(error_msg)
+
+# 打印配置信息（用于调试）
+print(f"✅ Supabase URL: {SUPABASE_URL}")
+print(f"✅ Supabase KEY 长度: {len(SUPABASE_KEY)} 字符")
+print(f"✅ Supabase KEY 前10位: {SUPABASE_KEY[:10]}...")
 
 # 初始化 Supabase 客户端
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase 客户端初始化成功")
+except Exception as e:
+    error_msg = f"❌ Supabase 客户端初始化失败: {str(e)}\n"
+    error_msg += "请检查：\n"
+    error_msg += "1. SUPABASE_URL 是否正确（从 Supabase Dashboard → Settings → API → Project URL 获取）\n"
+    error_msg += "2. SUPABASE_KEY 是否正确（从 Supabase Dashboard → Settings → API → anon public key 获取）\n"
+    error_msg += "3. API key 是否完整复制（没有多余的空格或换行）\n"
+    print(error_msg)
+    raise
 
 @app.route('/')
 def index():
